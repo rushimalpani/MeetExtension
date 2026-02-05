@@ -1,8 +1,8 @@
 // For local development
-const API_BASE_URL = 'http://localhost:3001/api';
+// const API_BASE_URL = 'http://localhost:3001/api';
 
-// For production (Render) - Uncomment and replace with your URL
-// const API_BASE_URL = 'https://your-gmeet-scheduler.onrender.com/api';
+// For production (Render)
+const API_BASE_URL = 'https://meetextension-2p8b.onrender.com/api';
 
 /**
  * Get stored auth token
