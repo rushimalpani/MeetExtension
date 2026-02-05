@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Gmeet Scheduler",
+  "version": "1.0.0",
+  "description": "Schedule meetings using natural language with AI. Automatically creates Google Calendar events with Meet links.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "http://localhost:3001/*"
+  ],
+  "externally_connectable": {
+    "matches": ["http://localhost:3001/*"]
+  },
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    },
+    "default_title": "Gmeet Scheduler"
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  }
+}

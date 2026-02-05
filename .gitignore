@@ -1,0 +1,7 @@
+# Root Level
+.DS_Store
+node_modules/
+
+# Ignore artifacts directory
+.gemini/
+brain/
