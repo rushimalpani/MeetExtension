@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { generateMeeting, quickGenerateMeeting } from '../services/api';
 
 const EXAMPLE_PROMPTS = [
@@ -13,6 +13,34 @@ export default function MeetingForm({ onSuccess, onError }) {
   const [isQuickLoading, setIsQuickLoading] = useState(false);
   const [quickLink, setQuickLink] = useState('');
   const [isCopied, setIsCopied] = useState(false);
+
+  // Load cached quick link on mount
+  useEffect(() => {
+    loadCachedQuickLink();
+  }, []);
+
+  async function loadCachedQuickLink() {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      try {
+        const data = await chrome.storage.local.get('cachedQuickLink');
+        if (data.cachedQuickLink) {
+          setQuickLink(data.cachedQuickLink);
+        }
+      } catch (err) {
+        console.error('Failed to load cached quick link:', err);
+      }
+    }
+  }
+
+  async function saveCachedQuickLink(link) {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      try {
+        await chrome.storage.local.set({ cachedQuickLink: link });
+      } catch (err) {
+        console.error('Failed to save cached quick link:', err);
+      }
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -39,6 +67,7 @@ export default function MeetingForm({ onSuccess, onError }) {
       const result = await quickGenerateMeeting();
       if (result && result.meetLink) {
         setQuickLink(result.meetLink);
+        saveCachedQuickLink(result.meetLink); // Cache the new quick link
       } else {
         throw new Error('No meeting link returned');
       }

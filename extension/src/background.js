@@ -32,32 +32,49 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Listen for URL changes in tabs for automatic auth detection
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'loading' && tab.url) {
-        const url = new URL(tab.url);
+        try {
+            const url = new URL(tab.url);
+            console.log('[AuthCheck] Loading URL:', url.origin + url.pathname);
 
-        // Check if the URL matches our backend success page
-        if (url.origin === 'http://localhost:3001' && url.pathname === '/api/auth/success') {
-            const token = url.searchParams.get('token');
+            // Check if the URL matches our backend success page
+            const allowedOrigins = [
+                'http://localhost:3001',
+                'https://meetextension-2p8b.onrender.com'
+            ];
 
-            if (token) {
-                console.log('Detected auth token in URL, saving...');
+            const isOriginMatch = allowedOrigins.includes(url.origin);
+            const isPathMatch = url.pathname === '/api/auth/success';
 
-                // Save token to storage
-                chrome.storage.local.set({ authToken: token }, () => {
-                    console.log('Auth token saved successfully');
+            if (isOriginMatch && isPathMatch) {
+                console.log('[AuthCheck] Auth success page detected!');
+                const token = url.searchParams.get('token');
 
-                    // Close the success tab after a short delay
-                    setTimeout(() => {
-                        chrome.tabs.remove(tabId);
+                if (token) {
+                    console.log('[AuthCheck] Found token, saving to storage...');
 
-                        // Try to reopen the popup automatically (Chrome 127+)
-                        if (chrome.action && chrome.action.openPopup) {
-                            chrome.action.openPopup().catch(err => {
-                                console.log('Automatic popup open failed (might require user gesture):', err);
-                            });
-                        }
-                    }, 500);
-                });
+                    // Save token to storage
+                    chrome.storage.local.set({ authToken: token }, () => {
+                        console.log('[AuthCheck] Token saved. Closing tab in 500ms...');
+
+                        // Close the success tab after a short delay
+                        setTimeout(() => {
+                            chrome.tabs.remove(tabId);
+                            console.log('[AuthCheck] Tab closed.');
+
+                            // Try to reopen the popup automatically (Chrome 127+)
+                            if (chrome.action && chrome.action.openPopup) {
+                                chrome.action.openPopup().catch(err => {
+                                    console.warn('[AuthCheck] Popup reopen failed:', err);
+                                });
+                            }
+                        }, 500);
+                    });
+                } else {
+                    console.warn('[AuthCheck] No token found in URL params');
+                }
             }
+        } catch (e) {
+            console.error('[AuthCheck] Error parsing URL:', e);
         }
     }
 });

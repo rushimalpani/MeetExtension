@@ -9,10 +9,14 @@
     "tabs"
   ],
   "host_permissions": [
-    "http://localhost:3001/*"
+    "http://localhost:3001/*",
+    "https://meetextension-2p8b.onrender.com/*"
   ],
   "externally_connectable": {
-    "matches": ["http://localhost:3001/*"]
+    "matches": [
+      "http://localhost:3001/*",
+      "https://meetextension-2p8b.onrender.com/*"
+    ]
   },
   "action": {
     "default_popup": "index.html",

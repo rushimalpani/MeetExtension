@@ -3,15 +3,24 @@ import { getAuthUrl, saveToken } from '../services/api';
 
 export default function AuthSection({ onAuthenticated, onLoginStart }) {
   function handleLogin() {
-    // Get extension ID
-    const extId = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id ? chrome.runtime.id : '';
-    
-    // Notify parent to show loader
-    if (onLoginStart) onLoginStart();
-    
-    // Open OAuth in new tab with extension ID
-    const authUrl = `${getAuthUrl()}?extId=${extId}`;
-    window.open(authUrl, '_blank');
+    try {
+      // Get extension ID
+      const extId = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id ? chrome.runtime.id : '';
+      
+      // Notify parent to show loader
+      if (onLoginStart) onLoginStart();
+      
+      // Open OAuth in new tab with extension ID
+      const authUrl = `${getAuthUrl()}?extId=${extId}`;
+      
+      if (typeof chrome !== 'undefined' && chrome.tabs) {
+        chrome.tabs.create({ url: authUrl });
+      } else {
+        window.open(authUrl, '_blank');
+      }
+    } catch (err) {
+      console.error('Login launch failed:', err);
+    }
   }
 
   return (

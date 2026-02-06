@@ -14,6 +14,7 @@ export default function Popup() {
 
   useEffect(() => {
     checkAuthStatus();
+    loadCachedResult(); // Load cached meeting result on mount
 
     // Listen for storage changes (for automatic login)
     const listener = (changes, area) => {
@@ -33,6 +34,42 @@ export default function Popup() {
     };
   }, []);
 
+  // Load cached meeting result from chrome.storage
+  async function loadCachedResult() {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      try {
+        const data = await chrome.storage.local.get('cachedMeetingResult');
+        if (data.cachedMeetingResult) {
+          setResult(data.cachedMeetingResult);
+        }
+      } catch (err) {
+        console.error('Failed to load cached result:', err);
+      }
+    }
+  }
+
+  // Save meeting result to chrome.storage
+  async function saveCachedResult(data) {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      try {
+        await chrome.storage.local.set({ cachedMeetingResult: data });
+      } catch (err) {
+        console.error('Failed to save cached result:', err);
+      }
+    }
+  }
+
+  // Clear cached meeting result from chrome.storage
+  async function clearCachedResult() {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      try {
+        await chrome.storage.local.remove('cachedMeetingResult');
+      } catch (err) {
+        console.error('Failed to clear cached result:', err);
+      }
+    }
+  }
+
   async function checkAuthStatus() {
     setIsLoading(true);
     try {
@@ -50,7 +87,8 @@ export default function Popup() {
   }
 
   async function handleLogout() {
-    await clearToken(); // Assuming 'logout' was a typo and should be 'clearToken' as per existing import
+    await clearToken();
+    await clearCachedResult(); // Clear cached meeting on logout
     setIsAuthenticated(false);
     setUserEmail('');
     setResult(null);
@@ -63,6 +101,7 @@ export default function Popup() {
   function handleMeetingSuccess(data) {
     setResult(data);
     setError(null);
+    saveCachedResult(data); // Cache the new meeting result
   }
 
   function handleMeetingError(err) {
@@ -71,6 +110,8 @@ export default function Popup() {
   }
 
   function handleBack() {
+    // Don't clear cached result - just go back to form
+    // The cached result will be shown when user reopens extension
     setResult(null);
     setError(null);
   }
@@ -85,7 +126,14 @@ export default function Popup() {
         {isAuthenticated && (
           <div className="user-info">
             <span className="user-email" title={userEmail}>{userEmail}</span>
-            <button onClick={handleLogout} className="logout-btn" title="Logout">⬅️</button>
+
+            <button onClick={handleLogout} className="logout-btn" title="Logout" style={{ color: '#ff4d4f' }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+            </button>
           </div>
         )}
       </header>
@@ -125,7 +173,8 @@ export default function Popup() {
       </main>
 
       <footer className="footer">
-        <p>Powered by AI • Made with ❤️</p>
+        <p>Powered by Gmeet Scheduler © 2026
+</p>
       </footer>
     </div>
   );
