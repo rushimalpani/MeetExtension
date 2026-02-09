@@ -1,13 +1,23 @@
 import React, { useState } from 'react';
 import CopyButtons from './CopyButtons';
 
+const PLATFORM_STYLES = {
+  google_meet: { name: 'Google Meet', icon: '/Gmeeticon.png', color: '#00897B' },
+  microsoft_teams: { name: 'Teams', icon: '/teamicon.png', color: '#6264A7' },
+  zoom: { name: 'Zoom', icon: '/zoomicon.png', color: '#2D8CFF' }
+};
+
 export default function ResultPreview({ result, onBack }) {
   const [activeTab, setActiveTab] = useState('details');
   const [recipientEmail, setRecipientEmail] = useState('');
   const [ccEmail, setCcEmail] = useState('');
   const [bccEmail, setBccEmail] = useState('');
   
-  const { meeting, times, meetLink, email, calendar } = result;
+  const { meeting, times, meetLink, email, calendar, platform } = result;
+  
+  // Get platform info - use from result or default to google_meet
+  const platformId = platform?.id || 'google_meet';
+  const platformStyle = PLATFORM_STYLES[platformId] || PLATFORM_STYLES.google_meet;
 
   const handleSendGmail = () => {
     const subject = encodeURIComponent(email.subject);
@@ -109,10 +119,13 @@ export default function ResultPreview({ result, onBack }) {
             </div>
 
             {meetLink && (
-              <div className="meet-link-card">
+              <div 
+                className="meet-link-card"
+                style={{ '--platform-color': platformStyle.color }}
+              >
                 <div className="meet-header">
-                  <span className="meet-icon">🎥</span>
-                  <span>Google Meet</span>
+                  <img src={platformStyle.icon} alt={platformStyle.name} className="meet-icon-img" />
+                  <span>{platformStyle.name}</span>
                 </div>
                 <a 
                   href={meetLink} 

@@ -1,8 +1,8 @@
 // For local development
-// const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = 'http://localhost:3001/api';
 
 // For production (Render)
-const API_BASE_URL = 'https://meetextension-2p8b.onrender.com/api';
+// const API_BASE_URL = 'https://meetextension-2p8b.onrender.com/api';
 
 /**
  * Get stored auth token
@@ -102,10 +102,10 @@ export function getAuthUrl() {
 /**
  * Generate meeting from prompt
  */
-export async function generateMeeting(prompt, userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone) {
+export async function generateMeeting(prompt, userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone, meetingPlatform = 'google_meet') {
     return apiRequest('/generate-meeting', {
         method: 'POST',
-        body: JSON.stringify({ prompt, userTimezone })
+        body: JSON.stringify({ prompt, userTimezone, meetingPlatform })
     });
 }
 
@@ -121,9 +121,9 @@ export async function previewMeeting(prompt, userTimezone = Intl.DateTimeFormat(
 /**
  * Generate meeting immediately without AI parsing
  */
-export async function quickGenerateMeeting(userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone) {
+export async function quickGenerateMeeting(userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone, meetingPlatform = 'google_meet') {
     return apiRequest('/quick-generate', {
         method: 'POST',
-        body: JSON.stringify({ userTimezone })
+        body: JSON.stringify({ userTimezone, meetingPlatform })
     });
 }

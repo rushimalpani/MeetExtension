@@ -3,13 +3,15 @@ const { getOAuth2Client } = require('../config/google');
 const { calculateMeetingTimes } = require('./timezoneService');
 
 /**
- * Create a Google Calendar event with Google Meet
+ * Create a Google Calendar event with optional video conference
  * @param {Object} meetingData - Parsed meeting data
  * @param {Object} tokens - OAuth tokens
  * @param {string} userTimezone - User's local timezone
+ * @param {string} meetingPlatform - Meeting platform (google_meet, microsoft_teams, zoom)
+ * @param {string} externalMeetLink - External meeting link for non-Google Meet platforms
  * @returns {Promise<Object>} Created event with Meet link
  */
-async function createMeetingEvent(meetingData, tokens, userTimezone) {
+async function createMeetingEvent(meetingData, tokens, userTimezone, meetingPlatform = 'google_meet', externalMeetLink = null) {
     const auth = getOAuth2Client(tokens);
     const calendar = google.calendar({ version: 'v3', auth });
 
@@ -21,10 +23,19 @@ async function createMeetingEvent(meetingData, tokens, userTimezone) {
         meetingData.timezone
     );
 
+    // Build description with meeting link for non-Google Meet platforms
+    let description = `Purpose: ${meetingData.purpose}\n\nParticipants: ${meetingData.participants}\n\nCreated via Gmeet Scheduler`;
+
+    if (externalMeetLink && meetingPlatform !== 'google_meet') {
+        const platformName = meetingPlatform === 'microsoft_teams' ? 'Microsoft Teams' :
+            meetingPlatform === 'zoom' ? 'Zoom' : meetingPlatform;
+        description = `${platformName} Meeting Link: ${externalMeetLink}\n\n${description}`;
+    }
+
     // Build event object
     const event = {
         summary: meetingData.title,
-        description: `Purpose: ${meetingData.purpose}\n\nParticipants: ${meetingData.participants}\n\nCreated via Gmeet Scheduler`,
+        description,
         start,
         end,
         attendees: parseAttendees(meetingData.participants),
@@ -37,8 +48,10 @@ async function createMeetingEvent(meetingData, tokens, userTimezone) {
         }
     };
 
-    // Add Google Meet if requested
-    if (meetingData.generateMeet) {
+    // Add Google Meet only if platform is google_meet and generateMeet is true
+    const shouldAddGoogleMeet = meetingPlatform === 'google_meet' && meetingData.generateMeet;
+
+    if (shouldAddGoogleMeet) {
         event.conferenceData = {
             createRequest: {
                 requestId: `meet-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -53,19 +66,29 @@ async function createMeetingEvent(meetingData, tokens, userTimezone) {
         const response = await calendar.events.insert({
             calendarId: 'primary',
             resource: event,
-            conferenceDataVersion: meetingData.generateMeet ? 1 : 0,
+            conferenceDataVersion: shouldAddGoogleMeet ? 1 : 0,
             sendUpdates: 'none' // Don't send invites automatically
         });
 
         const createdEvent = response.data;
+        console.log(`[DEBUG] Calendar insert successful. Platform: ${meetingPlatform}, ExternalLink: ${externalMeetLink}, GoogleLink: ${createdEvent.hangoutLink}`);
+
+        // If a non-Google platform is selected, prioritize the external link.
+        // Google sometimes automatically adds a hangoutLink even if we don't ask for it.
+        const finalMeetLink = meetingPlatform === 'google_meet'
+            ? (createdEvent.hangoutLink || externalMeetLink)
+            : (externalMeetLink || createdEvent.hangoutLink);
+
+        console.log(`[DEBUG] finalMeetLink selected: ${finalMeetLink}`);
 
         return {
             eventId: createdEvent.id,
             eventLink: createdEvent.htmlLink,
-            meetLink: createdEvent.hangoutLink || null,
+            meetLink: finalMeetLink,
             start: createdEvent.start,
             end: createdEvent.end,
-            summary: createdEvent.summary
+            summary: createdEvent.summary,
+            platform: meetingPlatform
         };
     } catch (error) {
         console.error('Calendar API error:', error.message);

@@ -2,6 +2,12 @@ const { parseMeetingRequest } = require('../services/aiService');
 const { createMeetingEvent } = require('../services/calendarService');
 const { convertTimezone, formatTimeDisplay } = require('../services/timezoneService');
 const { generateEmail } = require('../services/emailService');
+const {
+    MEETING_PLATFORMS,
+    isValidPlatform,
+    getPlatformConfig,
+    generateMeetingLink
+} = require('../services/meetingLinkService');
 
 /**
  * Generate meeting from natural language prompt
@@ -9,7 +15,11 @@ const { generateEmail } = require('../services/emailService');
  */
 async function generateMeeting(req, res) {
     try {
-        const { prompt, userTimezone = 'UTC' } = req.body;
+        const {
+            prompt,
+            userTimezone = 'UTC',
+            meetingPlatform = MEETING_PLATFORMS.GOOGLE_MEET
+        } = req.body;
         const { tokens, name: userName } = req.user;
 
         if (!prompt || typeof prompt !== 'string') {
@@ -20,7 +30,14 @@ async function generateMeeting(req, res) {
             return res.status(400).json({ error: 'Prompt too long (max 1000 characters)' });
         }
 
-        console.log(`[Meeting] Processing request from ${req.user.email}: "${prompt.substring(0, 50)}..."`);
+        // Validate meeting platform
+        if (!isValidPlatform(meetingPlatform)) {
+            return res.status(400).json({
+                error: `Invalid meeting platform. Supported: ${Object.values(MEETING_PLATFORMS).join(', ')}`
+            });
+        }
+
+        console.log(`[Meeting] Processing request from ${req.user.email}: "${prompt.substring(0, 50)}..." Platform: ${meetingPlatform}`);
 
         // Step 1: Parse with AI
         const meetingData = await parseMeetingRequest(prompt, userTimezone);
@@ -34,28 +51,49 @@ async function generateMeeting(req, res) {
             userTimezone
         );
 
-        // Step 3: Create calendar event
+        // Step 3: Generate meeting link based on platform
         let calendarResult = null;
         let meetLink = null;
+        let platformLinkResult = null;
 
         if (meetingData.generateMeet) {
             try {
-                calendarResult = await createMeetingEvent(meetingData, tokens, userTimezone);
-                meetLink = calendarResult.meetLink;
-                console.log('[Meeting] Calendar event created:', calendarResult.eventId);
+                console.log(`[DEBUG] Attempting generation for platform: ${meetingPlatform}`);
+                if (meetingPlatform === MEETING_PLATFORMS.GOOGLE_MEET) {
+                    // Use existing calendar service for Google Meet
+                    calendarResult = await createMeetingEvent(meetingData, tokens, userTimezone, meetingPlatform);
+                    meetLink = calendarResult.meetLink;
+                    console.log('[Meeting] Google Meet created via Calendar:', calendarResult.eventId, 'Link:', meetLink);
+                } else {
+                    // Generate link for other platforms
+                    platformLinkResult = await generateMeetingLink(meetingPlatform, meetingData, tokens);
+
+                    if (platformLinkResult.success) {
+                        meetLink = platformLinkResult.meetLink;
+                        console.log(`[Meeting] ${meetingPlatform} link generated:`, meetLink);
+                    } else {
+                        console.warn(`[Meeting] ${meetingPlatform} link generation failed:`, platformLinkResult.error);
+                    }
+
+                    // Still create calendar event (without Google Meet) for other platforms
+                    calendarResult = await createMeetingEvent(meetingData, tokens, userTimezone, meetingPlatform, meetLink);
+                    meetLink = calendarResult.meetLink; // Ensure we use the link from the calendar result
+                    console.log('[Meeting] Calendar event created for', meetingPlatform, ':', calendarResult.eventId);
+                }
             } catch (calError) {
-                console.error('[Meeting] Calendar error:', calError.message);
+                console.error('[Meeting] Calendar/Link error:', calError.message);
                 // Continue without calendar - still provide the parsed data
             }
         }
 
-        // Step 4: Generate email
+        // Step 4: Generate email with platform info
         const timeInfo = {
             localTime: formatTimeDisplay(meetingData.date, meetingData.time, userTimezone),
             foreignTime: formatTimeDisplay(meetingData.date, meetingData.time, meetingData.timezone)
         };
 
-        const email = generateEmail(meetingData, meetLink, timeInfo, userName);
+        const platformConfig = getPlatformConfig(meetingPlatform);
+        const email = generateEmail(meetingData, meetLink, timeInfo, userName, platformConfig);
 
         // Build response
         const response = {
@@ -78,6 +116,11 @@ async function generateMeeting(req, res) {
                     formatted: timeInfo.foreignTime,
                     timezone: meetingData.timezone
                 }
+            },
+            platform: {
+                id: meetingPlatform,
+                name: platformConfig.name,
+                icon: platformConfig.icon
             },
             calendar: calendarResult ? {
                 eventId: calendarResult.eventId,
@@ -157,10 +200,20 @@ async function previewMeeting(req, res) {
  */
 async function quickGenerateMeeting(req, res) {
     try {
-        const { userTimezone = 'UTC' } = req.body;
+        const {
+            userTimezone = 'UTC',
+            meetingPlatform = MEETING_PLATFORMS.GOOGLE_MEET
+        } = req.body;
         const { tokens, name: userName } = req.user;
 
-        console.log(`[QuickMeeting] Processing request from ${req.user.email}`);
+        // Validate meeting platform
+        if (!isValidPlatform(meetingPlatform)) {
+            return res.status(400).json({
+                error: `Invalid meeting platform. Supported: ${Object.values(MEETING_PLATFORMS).join(', ')}`
+            });
+        }
+
+        console.log(`[QuickMeeting] Processing request from ${req.user.email}, Platform: ${meetingPlatform}`);
 
         // Default meeting data
         const now = new Date();
@@ -175,19 +228,39 @@ async function quickGenerateMeeting(req, res) {
             generateMeet: true
         };
 
-        // Create calendar event directly
-        const calendarResult = await createMeetingEvent(meetingData, tokens, userTimezone);
-        const meetLink = calendarResult.meetLink;
+        let calendarResult = null;
+        let meetLink = null;
+
+        console.log(`[DEBUG] Quick generation for platform: ${meetingPlatform}`);
+        if (meetingPlatform === MEETING_PLATFORMS.GOOGLE_MEET) {
+            // Use existing calendar service for Google Meet
+            calendarResult = await createMeetingEvent(meetingData, tokens, userTimezone, meetingPlatform);
+            meetLink = calendarResult.meetLink;
+        } else {
+            // Generate link for other platforms
+            const platformLinkResult = await generateMeetingLink(meetingPlatform, meetingData, tokens);
+            console.log(`[DEBUG] platformLinkResult for ${meetingPlatform}:`, platformLinkResult);
+
+            if (platformLinkResult.success) {
+                meetLink = platformLinkResult.meetLink;
+            }
+
+            // Create calendar event for other platforms
+            calendarResult = await createMeetingEvent(meetingData, tokens, userTimezone, meetingPlatform, meetLink);
+            meetLink = calendarResult.meetLink; // Ensure we use the link from the calendar result
+            console.log(`[DEBUG] Final meetLink for ${meetingPlatform}:`, meetLink);
+        }
 
         console.log('[QuickMeeting] Calendar event created:', calendarResult.eventId);
 
-        // Generate email with default metadata
+        // Generate email with platform info
         const timeInfo = {
             localTime: formatTimeDisplay(meetingData.date, meetingData.time, userTimezone),
             foreignTime: formatTimeDisplay(meetingData.date, meetingData.time, userTimezone)
         };
 
-        const email = generateEmail(meetingData, meetLink, timeInfo, userName);
+        const platformConfig = getPlatformConfig(meetingPlatform);
+        const email = generateEmail(meetingData, meetLink, timeInfo, userName, platformConfig);
 
         res.json({
             success: true,
@@ -201,6 +274,11 @@ async function quickGenerateMeeting(req, res) {
                     formatted: timeInfo.foreignTime,
                     timezone: userTimezone
                 }
+            },
+            platform: {
+                id: meetingPlatform,
+                name: platformConfig.name,
+                icon: platformConfig.icon
             },
             calendar: {
                 eventId: calendarResult.eventId,

@@ -7,12 +7,19 @@ const EXAMPLE_PROMPTS = [
   "Set up a call with the marketing team next Monday at 3pm PST"
 ];
 
+const MEETING_PLATFORMS = [
+  { id: 'google_meet', name: 'Google Meet', icon: '/Gmeeticon.png', color: '#00897B' },
+  { id: 'microsoft_teams', name: 'Teams', icon: '/teamicon.png', color: '#6264A7' },
+  { id: 'zoom', name: 'Zoom', icon: '/zoomicon.png', color: '#2D8CFF' }
+];
+
 export default function MeetingForm({ onSuccess, onError }) {
   const [prompt, setPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isQuickLoading, setIsQuickLoading] = useState(false);
   const [quickLink, setQuickLink] = useState('');
   const [isCopied, setIsCopied] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState('google_meet');
 
   // Load cached quick link on mount
   useEffect(() => {
@@ -42,13 +49,17 @@ export default function MeetingForm({ onSuccess, onError }) {
     }
   }
 
+  function handlePlatformChange(platformId) {
+    setSelectedPlatform(platformId);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!prompt.trim() || isLoading || isQuickLoading) return;
 
     setIsLoading(true);
     try {
-      const result = await generateMeeting(prompt);
+      const result = await generateMeeting(prompt, undefined, selectedPlatform);
       onSuccess(result);
     } catch (error) {
       onError(error);
@@ -64,10 +75,10 @@ export default function MeetingForm({ onSuccess, onError }) {
     setQuickLink('');
     setIsCopied(false);
     try {
-      const result = await quickGenerateMeeting();
+      const result = await quickGenerateMeeting(undefined, selectedPlatform);
       if (result && result.meetLink) {
         setQuickLink(result.meetLink);
-        saveCachedQuickLink(result.meetLink); // Cache the new quick link
+        saveCachedQuickLink(result.meetLink);
       } else {
         throw new Error('No meeting link returned');
       }
@@ -89,12 +100,35 @@ export default function MeetingForm({ onSuccess, onError }) {
     setPrompt(example);
   }
 
+  const currentPlatform = MEETING_PLATFORMS.find(p => p.id === selectedPlatform);
+
   return (
     <div className="meeting-form">
+      {/* Platform Selector */}
+      <div className="platform-selector">
+        <label>Select Meeting Platform:</label>
+        <div className="platform-options">
+          {MEETING_PLATFORMS.map((platform) => (
+            <button
+              key={platform.id}
+              type="button"
+              className={`platform-option ${selectedPlatform === platform.id ? 'selected' : ''}`}
+              onClick={() => handlePlatformChange(platform.id)}
+              style={{
+                '--platform-color': platform.color
+              }}
+            >
+              <img src={platform.icon} alt={platform.name} className="platform-icon-img" />
+              <span className="platform-name">{platform.name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Quick Link Section at the Top */}
       <div className="quick-action-card">
         <div className="quick-action-header">
-          <span className="quick-tag">⚡ Quick Link</span>
+          <span className="quick-tag">⚡ Quick {currentPlatform?.name || 'Meeting'}</span>
           <button 
             type="button" 
             className="quick-gen-btn"
@@ -109,12 +143,22 @@ export default function MeetingForm({ onSuccess, onError }) {
           <div className="quick-result-area animate-fade-in">
             <div className="link-display">
               <span className="link-text">{quickLink}</span>
-              <button 
-                className={`mini-copy-btn ${isCopied ? 'copied' : ''}`}
-                onClick={handleCopyLink}
-              >
-                {isCopied ? '✓ Copied' : 'Copy'}
-              </button>
+              <div className="quick-actions-btns">
+                <button 
+                  className={`mini-copy-btn ${isCopied ? 'copied' : ''}`}
+                  onClick={handleCopyLink}
+                >
+                  {isCopied ? '✓ Copied' : 'Copy'}
+                </button>
+                <a 
+                  href={quickLink} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="mini-open-btn"
+                >
+                  Open
+                </a>
+              </div>
             </div>
           </div>
         )}
