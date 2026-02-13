@@ -72,6 +72,7 @@ export default function Popup() {
 
   async function checkAuthStatus() {
     setIsLoading(true);
+    setError(null); // Clear previous errors
     try {
       const { authenticated, user } = await checkAuth();
       setIsAuthenticated(authenticated);
@@ -81,6 +82,8 @@ export default function Popup() {
       }
     } catch (err) {
       console.error('Auth check failed:', err);
+      // Fall back to not authenticated state silently
+      setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
     }

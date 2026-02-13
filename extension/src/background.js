@@ -3,7 +3,34 @@
 
 chrome.runtime.onInstalled.addListener(() => {
     console.log('Gmeet Scheduler extension installed');
+
+    // Set up alarm for keep-alive ping (every 14 minutes)
+    // Render free tier spins down after 15 minutes of inactivity
+    chrome.alarms.create('keep-alive-ping', { periodInMinutes: 14 });
+    console.log('[Keep-Alive] Alarm created');
 });
+
+// Listen for alarms
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'keep-alive-ping') {
+        pingBackend();
+    }
+});
+
+/**
+ * Ping the backend to keep it from spinning down on Render
+ */
+async function pingBackend() {
+    const HEALTH_URL = 'https://meetextension-2p8b.onrender.com/api/health';
+    try {
+        console.log('[Keep-Alive] Pinging backend...');
+        const response = await fetch(HEALTH_URL);
+        const data = await response.json();
+        console.log('[Keep-Alive] Ping successful:', data.status);
+    } catch (error) {
+        console.error('[Keep-Alive] Ping failed:', error.message);
+    }
+}
 
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

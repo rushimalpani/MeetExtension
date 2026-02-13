@@ -53,10 +53,14 @@ export async function clearToken() {
 }
 
 /**
- * Make authenticated API request
+ * Make authenticated API request with timeout
  */
 async function apiRequest(endpoint, options = {}) {
     const token = await getToken();
+    const timeout = 10000; // 10 second timeout
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     const config = {
         ...options,
@@ -64,17 +68,31 @@ async function apiRequest(endpoint, options = {}) {
             'Content-Type': 'application/json',
             ...(token && { Authorization: `Bearer ${token}` }),
             ...options.headers
-        }
+        },
+        signal: controller.signal
     };
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-    const data = await response.json();
+    try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+        clearTimeout(timeoutId);
 
-    if (!response.ok) {
-        throw new Error(data.error || 'API request failed');
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'API request failed');
+        }
+
+        return data;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            throw new Error('Connection timed out. The server might be waking up or unavailable.');
+        }
+        if (error.message === 'Failed to fetch') {
+            throw new Error('Could not connect to service. Please check your internet or try again later.');
+        }
+        throw error;
     }
-
-    return data;
 }
 
 /**
