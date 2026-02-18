@@ -1,16 +1,17 @@
 # AI Meeting Scheduler - Chrome Extension
 
-A production-ready Chrome Extension with React.js frontend and Node.js/Express backend for AI-powered meeting scheduling.
+A production-ready Chrome Extension with React.js frontend and Node.js/Express backend for AI-powered meeting scheduling using Groq AI.
 
 ## 🚀 Features
 
-- **Natural Language Processing**: Type meetings in plain English
-- **AI-Powered Extraction**: Automatically extracts meeting details using Groq AI
-- **Timezone Conversion**: Automatic timezone handling with both local and foreign time display
-- **Google Calendar Integration**: Creates events directly in Google Calendar
-- **Google Meet Links**: Generates video meeting links automatically
-- **Professional Emails**: Auto-generates meeting invitation emails
-- **Copy & Download**: Easy sharing of meeting details
+- **Natural Language Processing**: Type meetings in plain English (e.g., "Schedule a sync with team tomorrow at 10am").
+- **AI-Powered Extraction**: Automatically extracts meeting details using Groq AI (Llama 3 models).
+- **Instant Meeting**: Quick generate button for immediate Google Meet link creation.
+- **Multimodal Support**: Support for Google Meet, Zoom, and MS Teams meeting details.
+- **Timezone Conversion**: Automatic timezone handling with both local and foreign time display.
+- **Google Calendar Integration**: Creates events directly in Google Calendar.
+- **Professional Emails**: Auto-generates meeting invitation emails with subject and body.
+- **Copy & Share**: One-click copy for meeting links and email invitations.
 
 ## 📁 Project Structure
 
@@ -19,24 +20,25 @@ MeetExtension/
 ├── backend/                 # Express.js API server
 │   ├── src/
 │   │   ├── config/         # Google OAuth & AI config
-│   │   ├── controllers/    # Route handlers
-│   │   ├── prompts/        # AI system prompts
-│   │   ├── routes/         # API routes
-│   │   ├── services/       # Business logic
+│   │   ├── controllers/    # Route handlers (auth, meeting)
+│   │   ├── prompts/        # AI system prompts for extraction
+│   │   ├── routes/         # API routes (authRoutes, meetingRoutes)
+│   │   ├── services/       # Business logic (calendar, AI, etc.)
 │   │   └── app.js          # Express app setup
 │   ├── .env.example        # Environment template
 │   ├── package.json
 │   └── server.js           # Entry point
 │
-├── extension/              # Chrome Extension (React)
+├── extension/              # Chrome Extension (React + Vite)
 │   ├── public/
-│   │   ├── icons/          # Extension icons
-│   │   └── manifest.json   # Manifest v3
+│   │   ├── icons/          # Extension icons (16, 48, 128)
+│   │   └── manifest.json   # Extension manifest v3
 │   ├── src/
-│   │   ├── components/     # React components
-│   │   ├── services/       # API communication
-│   │   ├── styles/         # CSS styles
-│   │   └── background.js   # Service worker
+│   │   ├── components/     # React UI components
+│   │   ├── services/       # API communication layer
+│   │   ├── styles/         # CSS design system
+│   │   ├── App.jsx         # Main application logic
+│   │   └── background.js   # Service worker for keep-alive & auth
 │   ├── package.json
 │   └── vite.config.js
 │
@@ -60,14 +62,16 @@ MeetExtension/
 4. Go to **OAuth consent screen** → Configure for External users
 5. Go to **Credentials** → Create **OAuth 2.0 Client ID**
    - Application type: Web application
-   - Authorized redirect URIs: `http://localhost:3001/api/auth/google/callback`
+   - Authorized redirect URIs: 
+     - `http://localhost:3001/api/auth/google/callback`
+     - `https://meetextension-2p8b.onrender.com/api/auth/google/callback`
 6. Save your Client ID and Client Secret
 
 ### 2. Groq API Setup
 
 1. Go to [Groq Console](https://console.groq.com/)
 2. Create an account and get your API key
-3. Free tier includes 30 requests/minute
+3. Copy your API key for the backend `.env`
 
 ### 3. Backend Setup
 
@@ -81,25 +85,7 @@ npm install
 cp .env.example .env
 
 # Edit .env with your credentials
-nano .env
-```
-
-Configure `.env`:
-```env
-PORT=3001
-NODE_ENV=development
-
-# Google OAuth (from step 1)
-GOOGLE_CLIENT_ID=your_client_id_here
-GOOGLE_CLIENT_SECRET=your_client_secret_here
-GOOGLE_REDIRECT_URI=http://localhost:3001/api/auth/google/callback
-
-# Groq AI (from step 2)
-AI_API_KEY=your_groq_api_key
-AI_MODEL=llama-3.3-70b-versatile
-
-# JWT Secret (generate random string)
-JWT_SECRET=your_super_secret_key_here
+# Ensure AI_MODEL is set (e.g., llama-3.3-70b-versatile)
 ```
 
 Start the server:
@@ -125,133 +111,68 @@ npm run build
 2. Enable **Developer mode** (top right)
 3. Click **Load unpacked**
 4. Select the `extension/dist` folder
-5. The extension icon should appear in your toolbar
+5. The extension icon should appear in your toolbar (Gmeet Scheduler)
 
 ## 🎯 Usage
 
 1. Click the extension icon in Chrome
 2. Click **Sign in with Google**
-3. Complete the OAuth flow
-4. Copy and paste the token when prompted
-5. Type your meeting request:
-   ```
-   Schedule a meeting with John tomorrow at 2pm EST about quarterly review
-   ```
-6. Click **Generate Meeting**
-7. View meeting details, copy email, or open in Calendar
+3. Complete the OAuth flow (The extension handles the token automatically)
+4. Type your meeting request or use the **Quick Generate** button
+5. View meeting details, copy invitation, or open directly in Calendar
 
 ## 📡 API Endpoints
 
-### Authentication
+### Authentication (`/api/auth`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/auth/google` | GET | Initiate OAuth flow |
-| `/api/auth/google/callback` | GET | OAuth callback |
-| `/api/auth/me` | GET | Get current user |
-| `/api/auth/validate` | GET | Validate token |
+| `/google` | GET | Initiate OAuth flow |
+| `/google/callback` | GET | OAuth callback |
+| `/success` | GET | Success page for auth completion |
+| `/me` | GET | Get current authenticated user |
+| `/validate` | GET | Validate JWT token |
+| `/diag` | GET | System diagnostics (secrets check) |
 
-### Meetings
+### Meetings (`/api`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/generate-meeting` | POST | Generate meeting with calendar |
-| `/api/preview-meeting` | POST | Preview without creating event |
-| `/api/health` | GET | Health check |
+| `/generate-meeting` | POST | Full AI extraction & Calendar creation |
+| `/preview-meeting` | POST | AI extraction only (no calendar) |
+| `/quick-generate` | POST | Immediate meeting creation (skips AI) |
+| `/health` | GET | Server health check |
 
-### Request Format
+## 🚢 Deployment
 
-```json
-{
-  "prompt": "Schedule a meeting with Sarah tomorrow at 3pm PST",
-  "userTimezone": "America/New_York"
-}
-```
+### Production Backend (Render)
 
-### Response Format
+The backend is deployed at: `https://meetextension-2p8b.onrender.com`
 
-```json
-{
-  "success": true,
-  "meeting": {
-    "title": "Meeting with Sarah",
-    "date": "2026-02-05",
-    "time": "15:00",
-    "timezone": "America/Los_Angeles",
-    "duration": 60,
-    "participants": "Sarah",
-    "purpose": "Discussion"
-  },
-  "times": {
-    "local": { "formatted": "...", "timezone": "America/New_York" },
-    "foreign": { "formatted": "...", "timezone": "America/Los_Angeles" }
-  },
-  "meetLink": "https://meet.google.com/xxx-xxxx-xxx",
-  "email": {
-    "subject": "Meeting Invitation: Meeting with Sarah | February 5, 2026",
-    "body": "..."
-  }
-}
+To update production:
+1. Ensure `NODE_ENV=production`
+2. Set all `.env` variables in Render dashboard
+3. Backend service worker in extension handles the "waking up" ping
+
+### Extension Production update
+
+Ensure `extension/src/services/api.js` points to the Render URL:
+```js
+const API_BASE_URL = 'https://meetextension-2p8b.onrender.com/api';
 ```
 
 ## 🔒 Security
 
-- OAuth 2.0 for Google authentication
-- JWT tokens for API authentication
-- Rate limiting (100 requests/15 min)
-- Input validation with express-validator
-- Helmet.js for security headers
-- CORS configured for extension only
-
-## 🚢 Deployment
-
-### Backend (Production)
-
-```bash
-# Build and deploy to your server
-cd backend
-npm install --production
-
-# Set production environment variables
-export NODE_ENV=production
-export PORT=3001
-# ... other env vars
-
-# Start with PM2
-npm install -g pm2
-pm2 start server.js --name meet-api
-```
-
-### Update Extension for Production
-
-1. Update `extension/src/services/api.js`:
-   ```js
-   const API_BASE_URL = 'https://your-api-domain.com/api';
-   ```
-
-2. Update `extension/public/manifest.json`:
-   ```json
-   "host_permissions": [
-     "https://your-api-domain.com/*"
-   ]
-   ```
-
-3. Rebuild: `npm run build`
-
-4. For Chrome Web Store:
-   - Zip the `dist` folder
-   - Upload to [Chrome Developer Dashboard](https://chrome.google.com/webstore/devconsole)
+- OAuth 2.0 for secure Google integration
+- JWT tokens for API session management
+- Secure background service worker for token handling
+- CORS configured for specific extension and local origins
+- Helmet.js and Express rate limiting
 
 ## 📝 License
 
 MIT License
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
-
 ---
 
-Made with ❤️ using React, Node.js, and AI
+Made with ❤️ by the MeetExtension Team

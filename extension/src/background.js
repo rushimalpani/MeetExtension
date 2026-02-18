@@ -35,9 +35,10 @@ async function pingBackend() {
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'GET_TOKEN') {
-        chrome.storage.local.get(['authToken'], (result) => {
-            sendResponse({ token: result.authToken });
-        });
+        chrome.storage.local.get(['authToken'],
+            (result) => {
+                sendResponse({ token: result.authToken });
+            });
         return true; // Required for async response
     }
 

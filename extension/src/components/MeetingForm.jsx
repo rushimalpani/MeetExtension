@@ -23,15 +23,18 @@ export default function MeetingForm({ onSuccess, onError }) {
 
   // Load cached quick link on mount
   useEffect(() => {
-    loadCachedQuickLink();
+    loadCachedQuickLink(selectedPlatform);
   }, []);
 
-  async function loadCachedQuickLink() {
+  async function loadCachedQuickLink(platformId) {
     if (typeof chrome !== 'undefined' && chrome.storage) {
       try {
-        const data = await chrome.storage.local.get('cachedQuickLink');
-        if (data.cachedQuickLink) {
-          setQuickLink(data.cachedQuickLink);
+        const key = `cachedQuickLink_${platformId}`;
+        const data = await chrome.storage.local.get(key);
+        if (data[key]) {
+          setQuickLink(data[key]);
+        } else {
+          setQuickLink('');
         }
       } catch (err) {
         console.error('Failed to load cached quick link:', err);
@@ -39,10 +42,11 @@ export default function MeetingForm({ onSuccess, onError }) {
     }
   }
 
-  async function saveCachedQuickLink(link) {
+  async function saveCachedQuickLink(link, platformId) {
     if (typeof chrome !== 'undefined' && chrome.storage) {
       try {
-        await chrome.storage.local.set({ cachedQuickLink: link });
+        const key = `cachedQuickLink_${platformId}`;
+        await chrome.storage.local.set({ [key]: link });
       } catch (err) {
         console.error('Failed to save cached quick link:', err);
       }
@@ -51,6 +55,7 @@ export default function MeetingForm({ onSuccess, onError }) {
 
   function handlePlatformChange(platformId) {
     setSelectedPlatform(platformId);
+    loadCachedQuickLink(platformId);
   }
 
   async function handleSubmit(e) {
@@ -78,7 +83,7 @@ export default function MeetingForm({ onSuccess, onError }) {
       const result = await quickGenerateMeeting(undefined, selectedPlatform);
       if (result && result.meetLink) {
         setQuickLink(result.meetLink);
-        saveCachedQuickLink(result.meetLink);
+        saveCachedQuickLink(result.meetLink, selectedPlatform);
       } else {
         throw new Error('No meeting link returned');
       }
